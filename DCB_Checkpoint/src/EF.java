@@ -12,13 +12,18 @@ public class EF {
     public int lessTimestamp = 0;
     public String input;
     public PriorityQueue<Message> BufferReceivedMessages = new PriorityQueue<Message>(1, new Message());
-
+    
+    //variáveis criadas por Guilherme Bizzani
+    public int menorPredic = Integer.MAX_VALUE;
+    private Map<String, Vector<Integer>> hashQt = new HashMap<String, Vector<Integer>>();
+    
     /////////////////////////////////////////////////////////////////////////////////////
     public EF(ApplicationDCB A) throws IOException // construtor
     {
         App = A;
         actualLVT = 0;
         System.out.println("EF Inicializado...");
+        
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
@@ -59,6 +64,37 @@ public class EF {
         }
         // se um federado avanï¿½a no tempo sem enviar msg,
         // um seek precisa ser executado na lista de entrada
+        
+        
+        //meu codigo:
+        //"chama" o redirect 3, que "força" o CHAT a criar um checkpoint.
+        if(actualLVT >= menorPredic-100){//LVT chegou a predicao que foram feitas ao receber mensagens dos outros federados.
+        	
+        	System.out.println("Criando checkpoint com a menor predicao no lvt:" + actualLVT);
+        	App.NewGateway.Redirect(3);
+        	
+        	menorPredic = Integer.MAX_VALUE;
+        	
+        }
+        
+        //codigo para "finalizar" a execução dos federados que sofreram rollbacks.
+        
+        if(App.FederateType.compareTo("synchronous") != 0){
+        	if(actualLVT == 40000){
+	        	System.out.println("Simulação chegou no LVT 40000, finalizando processo....");
+	        	
+	        	System.out.println("GVT atual: "+App.NewDCB.getGVT());
+	        	
+	        	System.out.println("Total de anti-mensagens: "+App.NewEDCB.totalAntiMsg);
+	        	
+	        	return "-1";
+        	
+        	}
+        }
+        //fim
+        
+        
+        
         return String.valueOf(actualLVT);
     }
 
@@ -67,6 +103,10 @@ public class EF {
     /////////////////////////////////////////////////////////////////////////////////////
     public void Decode(Message Msg) throws IOException // Decodifica a mensagem
     {
+
+    	
+    	
+    	
         this.StoreReceivedMessages(Msg);
 
         InputAttribute AttributeTemp = null;
@@ -77,13 +117,106 @@ public class EF {
             Source,
             Msg.LVT, // Fiz alteraï¿½ï¿½o aqui (o LVT ï¿½ o timestamp da msg)
             getAttributeType(Msg.AttributeID));
-        if (Msg.AttributeID.compareTo("444.3") == 0) {
+        
+        if (Msg.AttributeID.compareTo("444.3") == 0) { //aqui onde recebe uma mensagem que causa rollback
             InputAttributeQueue.add(0, AttributeTemp);
-            System.out.println("adicionou na primeira posiÃ§Ã£o");
+            //System.out.println("adicionou na primeira posicao1");
             contElemIAQ++;
             seekInputAttributeQueue();
             int i = 0;
-        } else if (Msg.AttributeID.compareTo("444.1") != 0) {
+            
+            //this.StoreReceivedMessages(Msg);
+
+        } else if (Msg.AttributeID.compareTo("444.1") != 0) { //aqui é onde recebe a mensagem de outro chat
+        	
+        	
+        	//modificações de Guilherme Bizzani
+        	
+        	
+        	//código para modificar o UID da mensagem, pois seu timestamp é menor que o LVT atual.
+        	int lvtMsg = Integer.parseInt(Msg.LVT);
+        	//int lvtChat = Integer.parseInt(actualLVT);
+        	if(lvtMsg < actualLVT && Msg.Value.compareTo("") != 0){
+        		
+        		//System.out.println("Alterando o UID da mensagem para que se torne uma mensagem que cause rollback");
+        		
+        		AttributeTemp.uid = "444.3";
+        		
+                InputAttributeQueue.add(0, AttributeTemp);
+                //System.out.println("adicionou na primeira posicao2");
+                contElemIAQ++;
+                seekInputAttributeQueue();
+                
+                //System.out.println("LVT atual, depois "+actualLVT);
+                //updateLVT(Msg.LVT);
+                return;
+        	}
+        	
+        	
+        	//código para criação e manutenção do HashMap, que mantém o timestamp das ultimas 5 mensagens recebidas de cada outro chat
+            //System.out.println("SOURCE:"+Source+".");
+        	
+            if(App.FederateType.compareTo("synchronous") != 0){
+            	
+            	if(Msg.Value.compareTo("") != 0){ //verifica se a mensagem não está vazia
+            		//atualiza ou cria o hashMap do Source atual
+	            	if(hashQt.containsKey(Source)){ //caso já exista o source no hashQt
+		            	Vector<Integer> qt = new Vector<Integer>();
+		            	qt = hashQt.get(Source);
+		            	int tam = qt.size();
+		            	//System.out.println("Tamanho do Vector do hash:"+tam);
+		            	
+		            	//código para verificar caso já tenha ocorrido rollback
+		            	if(qt.get(tam-1) > Integer.parseInt(Msg.LVT)){//se tiver mensagens salvas no vetor com LVT maior que a recebida agora, quer dizer que realizou rollback
+		            		//System.out.println("Entrou na verificacao de rollback das mensagens de predicao");
+		            		int i = tam-1;
+		            		while(qt.size() > 0 && qt.get(i) > Integer.parseInt(Msg.LVT)){
+		            			//System.out.println("Removendo mensagem do vetor:"+qt.get(i));
+		            			qt.removeElementAt(i);
+		            			i--;
+		            		}
+		            	}
+		            	
+
+		            	if(tam < 5){ //caso não tenha 5 mensagens recebidas ainda, simplesmente adiciona a nova.
+		            		//System.out.println("Tam eh menor que 5, simplesmente adicionou no Vector!");
+		            		qt.add(Integer.parseInt(Msg.LVT));
+		            		//System.out.println("Vector:"+qt);
+		            	}else{//já possui 5 mensagens, então tem que excluir a mais antiga.
+		            		//System.out.println("Vector antes do remove:"+qt);
+							qt.removeElementAt(0);
+							//System.out.println("Vector depois do remove:"+qt);
+							qt.add(Integer.parseInt(Msg.LVT));
+							//System.out.println("Vector depois do add:"+qt);
+		            	}
+		            	hashQt.put(Source, qt);
+		            	
+		            	//System.out.println("HashQT do source:"+Source+" atualizado para:"+);
+		            }else{//criando um source novo.
+		            	Vector<Integer> aux = new Vector<Integer>();
+		            	aux.add(Integer.parseInt(Msg.LVT));
+		            	hashQt.put(Source, aux);
+		            	//System.out.println("Criou uma key do hash! key:"+Source+"VALOR COM VECTOR:"+hashQt.get(Source));
+		            }
+	            	int dif, aux;
+	            	if(hashQt.get(Source).size() > 1){
+	            		dif = hashQt.get(Source).get(hashQt.get(Source).size()-1) - hashQt.get(Source).get(0);
+	            		aux = dif / (hashQt.get(Source).size());
+	            	}else{
+	            		aux = Integer.parseInt(Msg.LVT);
+	            	}
+	                aux += Integer.parseInt(Msg.LVT);
+	                //System.out.println("Mensagem recebida do federado"+ Source +" previsão:"+aux+" e tamanho do vector = "+hashQt.get(Source).size());
+	                //System.out.println("Value:"+Msg.Value+".");
+	                if(aux < menorPredic){
+	                	menorPredic = aux;
+	                	//System.out.println("Menor predicao atualizada:"+menorPredic+".");
+	                }
+	            }
+            }
+        	
+        	//codigo original
+        	
             InputAttributeQueue.add(AttributeTemp);
             //System.out.println("Stored Msg from:" + AttributeTemp.Source + " Attrib.:" + Msg.AttributeID + " Tstp.:" + Msg.LVT);
             contElemIAQ++; // controla o numero de elementos na lista de entrada
@@ -111,9 +244,12 @@ public class EF {
 
     /////////////////////////////////////////////////////////////////////////////////////
     public void StoreReceivedMessages(Message ReceivedMessage) {
-        if ((ReceivedMessage.FederateSource.compareTo("444") != 0) && (ReceivedMessage.Value.compareTo("") != 0)) {
+    	//System.out.println("FederateSource da mensagem atual:"+ReceivedMessage.FederateSource);
+        
+    	if ((ReceivedMessage.FederateSource.compareTo("444") != 0) && (ReceivedMessage.Value.compareTo("") != 0)) {
             BufferReceivedMessages.add(ReceivedMessage);
         }
+        
     /*System.out.println("Inicio do BufferReceivedMessages");
     for (Message e:BufferReceivedMessages){
     System.out.println(e);
@@ -154,18 +290,35 @@ public class EF {
                 }
             //System.out.print(Temp.LVT +" ** notime ** ");
             } // se Temp.LVT nï¿½o comeï¿½ar com 0 entï¿½o ï¿½ originario de sincrono
-            else if (lessTimestamp <= Integer.parseInt(App.NewDCB.getGVT()) && Temp.LVT.indexOf('0') != 0) {
+            //else if (lessTimestamp <= Integer.parseInt(App.NewDCB.getGVT()) && Temp.LVT.indexOf('0') != 0) {
+            else if (lessTimestamp <= actualLVT && Temp.LVT.indexOf('0') != 0) {
+            	//System.out.println("entrou no else if");
+            	
                 //System.out.println("TIMESTAMP DA MSG: "+lessTimestamp+" GVT:"+App.NewDCB.getGVT()+"TempUID:"+Temp.uid);
 
                 // Marcador de tempo de inicio do tempo gasto para atualizaï¿½ï¿½o do display
                 //	Calendar hoje = Calendar.getInstance();
                 //	System.out.println("Mandando mensagem com timestamp "+Temp.LVT+" em: "+hoje.getTimeInMillis());
+            	
+            	if(Temp.uid.compareTo("444.3") == 0){	//esta situação ocorre quando o DCB "tenta" reproduzir uma mensagem que gerou rollback e ficou salva com
+            											//LVT-1, por exemplo: Mensagem gerou rollback no 600, fica salva como: 599.
+            											//O dcb chamava os métodos de rollbacks, que por algum motivo não chegavam a completar o rollback
+            											//então está sendo ignorado este rollback e removendo a mensagem da fila de atributos.
+            		if(actualLVT - Integer.parseInt(Temp.LVT) < 10 ){
+                		System.out.println("Nao vai chamar o protocol converter.");
+                		System.out.println("LVT Atual: "+actualLVT+"LVT temp: "+Temp.LVT);
+                		InputAttributeQueue.remove(Temp);
+                		
+                		break;
+                	}
+            	}
                 App.NewGateway.Redirect(getProtocolConverterID(Temp.uid));
                 if (App.FederateType.compareTo("notime") == 0) {
                     updateLVT(String.valueOf(lessTimestamp));
                 }
             } else {
-                //System.out.println("\nEntrou aki");
+            	//System.out.println("entrou no ELSE!");
+            	//System.out.println("LVT do Temp: "+Temp.LVT+" Valor do Temp: "+Temp.Value+" e UID: "+Temp.uid);
                 //App.NewGateway.Redirect(getProtocolConverterID(Temp.uid));
                 break;
             }

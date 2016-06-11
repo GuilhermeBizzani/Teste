@@ -18,7 +18,9 @@ public class DCBMThread {
     /////////////////////////////////////////////////////////////////////////////////////
     public static void main(String args[]) throws IOException // Main
     {
+    	
         System.out.println("Inicializado DCB Multithread...");
+
         new DCBMThread(args);
     }
 

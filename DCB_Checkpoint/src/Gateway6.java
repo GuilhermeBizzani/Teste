@@ -23,6 +23,15 @@ public class Gateway6 {
         Fed = new Chat(6);
         Fed.setVisible(true);
     }
+    
+    //criacao:
+    
+    public static void setCheckpoint(String timestamp){
+    	Fed.setCheckpoint(timestamp);
+    }
+    
+    //fim
+    
 
     ///////////////////////////////////////////////////////////////////////////
     // Métodos de tratamento do tempo para modo conservador (síncrono)
@@ -51,19 +60,34 @@ public class Gateway6 {
                 }
                 break;
             }
+            //criacao:
+            case 3: {
+            	//System.out.println("entrou no case 3!");
+            	Fed.setCheckpoint(App.NewEF.getLVT());
+            	break;
+            }
+            //fim
             case 444: {
                 A0 = App.NewEF.getAttributeReceived("444.3");
                 if (A0 != null) {
+                	//System.out.println("comeco do rollback no gateway:");
                     App.NewEF.AttributeRemove(A0);
                     Fed.rollback = true;
                     checkpoint = Fed.getCheckpoint(A0.LVT);
                     if ( checkpoint != null) {
+                    	//System.out.println("antimsg:");
                         App.NewEDCB.antiMessageTrigger(checkpoint);
+                        //System.out.println("chama o rollback:");
                         Fed.rollback(checkpoint);
-                        Fed.setChatLVT(updateLVT(A0.LVT));
+                        //Fed.setChatLVT(updateLVT(A0.LVT));
+                        //System.out.println("update lvt:");
+                        Fed.setChatLVT(updateLVT(checkpoint));
+                        //System.out.println("setreceivedText:");
                         Fed.setReceivedText(A0.Value);
-                        Fed.rollback = false;
+                        
+                        //System.out.println("fim");
                     }
+                    Fed.rollback = false;
                 }
                 break;
             }

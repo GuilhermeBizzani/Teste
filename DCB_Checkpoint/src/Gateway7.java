@@ -47,6 +47,13 @@ public class Gateway7 {
                 }
                 break;
             }
+            //criacao:
+            case 3: {
+            	//System.out.println("entrou no case 3!");
+            	Fed.setCheckpoint(App.NewEF.getLVT());
+            	break;
+            }
+            //fim
             case 444: {
                 A0 = App.NewEF.getAttributeReceived("444.3");
                 if (A0 != null) {
@@ -56,10 +63,11 @@ public class Gateway7 {
                     if ( checkpoint != null) {
                         App.NewEDCB.antiMessageTrigger(checkpoint);
                         Fed.rollback(checkpoint);
-                        Fed.setChatLVT(updateLVT(A0.LVT));
+                        Fed.setChatLVT(updateLVT(checkpoint));
                         Fed.setReceivedText(A0.Value);
-                        Fed.rollback = false;
+                        
                     }
+                    Fed.rollback = false;
                 }
                 break;
             }

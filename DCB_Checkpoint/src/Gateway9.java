@@ -56,7 +56,7 @@ public class Gateway9 {
                     if ( checkpoint != null) {
                         App.NewEDCB.antiMessageTrigger(checkpoint);
                         Fed.rollback(checkpoint);
-                        Fed.setChatLVT(updateLVT(A0.LVT));
+                        Fed.setChatLVT(updateLVT(checkpoint));
                         Fed.setReceivedText(A0.Value);
                         Fed.rollback = false;
                     }

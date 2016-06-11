@@ -1,3 +1,51 @@
+/*
+ * algoritmos probabilisticos de criação de checkpoint
+ * analise de escanolabilidade 
+ * 
+ * automação do teste
+ * referência!
+ * 
+ * 
+ * INFERÊNCIA PROBABILISTICA
+ * PROBABILIDADE CONJUNTIVA
+ * 
+ * refinar a automação
+ * ACHAR O ARTIGO!
+ * re-executar as mensagens depois de rollback
+ * 
+ * 
+ * -----criar um projeto de implementação do z-path
+ * 
+ * 
+ * verificar maneira para não excluir a mensagem que gera o rollback
+ * 
+ * 
+ * "sempre gera anti-mensagem" = EDCB linha 55~
+ * 
+ * 
+ * citar o artigo que fala sobre o ÍNDICE de checkpoint
+ * não é 100%, mas aumentou a chance do estado ser seguro
+ * 
+ * citar outros artigos que implementam outras técnicas que são "melhores"
+ * -explicar porque não deu para desenvolver essas técnicas melhores-
+ * 
+ * 
+ * 
+ * 10/05/2016
+ * 
+ * contar o tempo gasto em cada rollback ( (tempo atual no rollback) - checkpoint utilizado)
+ * contar o total deste tempo em toda a simulação
+ * 
+ * contar quantos checkpoints foram inúteis ao realizar rollback
+ * 
+ * contar quantas anti-mensagens foram geradas com o rollback
+ * 
+ * tempo total simulado
+ * 
+ * 
+ * 
+ */
+
 
 /**
  *
@@ -11,6 +59,8 @@ import java.util.Set;
 import javax.swing.JOptionPane;
 import javax.swing.UIManager;
 
+import jdk.management.resource.internal.TotalResourceContext;
+
 public class Chat extends javax.swing.JFrame {
 
     private int id;
@@ -21,14 +71,36 @@ public class Chat extends javax.swing.JFrame {
     private boolean initAtualizaLVT;
     public static boolean rollback = false;
     private ArrayList<String> checkpointsArray = new ArrayList<String>();
-
+    
+    private int CkpIndex;
+    
+    public int totalTempoRollback;
+    
+    public int totalCheckpointsInuteis; 
+    
+    public int totalRollbacks;
+    
+    public int mensagensChat5[];
+    
+    
     /** Inicializa o chat com o id do Federado.
     @param id id do federado*/
     public Chat(int id) {
         this.id = id;
+        
+        //inicia a variavel CkpIndex com 0
+        CkpIndex = 0;
+        
+        //inicia a variavel de total de tempo de rollback e total de checkpoints inuteis em 0
+        totalTempoRollback = 0;
+        totalCheckpointsInuteis = 0;
+        totalRollbacks = 0;
+        
+        
         //Seta o LookAndFeel para o GTK++
         try {
-            UIManager.setLookAndFeel(new com.sun.java.swing.plaf.gtk.GTKLookAndFeel());
+            //UIManager.setLookAndFeel(new com.sun.java.swing.plaf.gtk.GTKLookAndFeel()); ALTERAÇÃO PARA FUNCIONAR NO WINDOWS.
+            UIManager.setLookAndFeel(new com.sun.java.swing.plaf.windows.WindowsLookAndFeel());
         } catch (Exception ex) {
         }
 
@@ -65,9 +137,9 @@ public class Chat extends javax.swing.JFrame {
                 } else if (Gateway6.App.FederateType.compareTo("asynchronous") == 0) {
                     assynchronousTimeButton.setSelected(true);
                 }
-                CheckpointAnalyzer CpAn = new CheckpointAnalyzer(this);
-                Thread cpan = new Thread(CpAn);
-                cpan.start();
+                //CheckpointAnalyzer CpAn = new CheckpointAnalyzer(this);
+                //Thread cpan = new Thread(CpAn);
+                //cpan.start();
                 this.setCheckpoint("0");
                 recipientComboBox.removeItemAt(1);
                 break;
@@ -80,9 +152,9 @@ public class Chat extends javax.swing.JFrame {
                 } else if (Gateway7.App.FederateType.compareTo("asynchronous") == 0) {
                     assynchronousTimeButton.setSelected(true);
                 }
-                CheckpointAnalyzer CpAn = new CheckpointAnalyzer(this);
-                Thread cpan = new Thread(CpAn);
-                cpan.start();
+                //CheckpointAnalyzer CpAn = new CheckpointAnalyzer(this);
+                //Thread cpan = new Thread(CpAn);
+                //cpan.start();
                 this.setCheckpoint("0");
                 recipientComboBox.removeItemAt(2);
                 break;
@@ -95,9 +167,9 @@ public class Chat extends javax.swing.JFrame {
                 } else if (Gateway8.App.FederateType.compareTo("asynchronous") == 0) {
                     assynchronousTimeButton.setSelected(true);
                 }
-                CheckpointAnalyzer CpAn = new CheckpointAnalyzer(this);
-                Thread cpan = new Thread(CpAn);
-                cpan.start();
+                //CheckpointAnalyzer CpAn = new CheckpointAnalyzer(this);
+                //Thread cpan = new Thread(CpAn);
+                //cpan.start();
                 this.setCheckpoint("0");
                 recipientComboBox.removeItemAt(3);
                 break;
@@ -110,14 +182,24 @@ public class Chat extends javax.swing.JFrame {
                 } else if (Gateway9.App.FederateType.compareTo("asynchronous") == 0) {
                     assynchronousTimeButton.setSelected(true);
                 }
-                CheckpointAnalyzer CpAn = new CheckpointAnalyzer(this);
-                Thread cpan = new Thread(CpAn);
-                cpan.start();
+                //CheckpointAnalyzer CpAn = new CheckpointAnalyzer(this);
+                //Thread cpan = new Thread(CpAn);
+                //cpan.start();
                 this.setCheckpoint("0");
                 recipientComboBox.removeItemAt(4);
                 break;
             }
         }
+        if(id != 5){
+        	CheckpointAnalyzer CpAn = new CheckpointAnalyzer(this);
+            Thread cpan = new Thread(CpAn);
+            cpan.start();
+        }
+        
+        
+        MensagensAutomaticas ChatTest = new MensagensAutomaticas(this);
+        Thread chatT = new Thread(ChatTest);
+        chatT.start();
         timeStampText.setText("0");
     }
 
@@ -126,7 +208,29 @@ public class Chat extends javax.swing.JFrame {
      */
     public void setReceivedText(String value) {
         lastEventTimestamp = chatLVT;
-
+        
+        
+        //alteração para criar um checkpoint caso a mensagem recebida contenha o checkpoint INDEX maior do que o atual.
+        if(id != 5){
+        	
+        	String[] splt = value.split("®");
+        	
+        	if(splt.length == 2){
+        		String indexReceived = splt[1];
+        		System.out.println("Recebeu o Index: "+indexReceived);
+        		System.out.println("Index atual: "+CkpIndex);
+        		int indexReceivedINT = Integer.parseInt(indexReceived);
+        		if(indexReceivedINT > CkpIndex){
+        			System.out.println("Criando checkpoint baseado no Index de mensagem recebida.");
+        			Integer aux = Integer.parseInt(chatLVT);
+        			aux += 100;
+        			this.setCheckpoint(aux.toString());
+        			CkpIndex = indexReceivedINT;
+        		}
+        		
+        	}
+        }
+        
         switch (id) {
             case 5: {
                 this.receivedText.setText(receivedText.getText() + value + "\n");
@@ -141,6 +245,11 @@ public class Chat extends javax.swing.JFrame {
                     teste.start();
                     break;
                 }
+                /*
+                this.qt6++;
+                int aux = Integer.parseInt(this.getLVT()) / this.qt6;
+                System.out.println("Mensagem recebida do federado 6! previsão: "+this.getLVT()+" + " + aux);
+                */
                 this.receivedText.setText(receivedText.getText() + value + "\n");
                 break;
             }
@@ -200,8 +309,9 @@ public class Chat extends javax.swing.JFrame {
      * @param timestamp
      */
     public void setCheckpoint(String timestamp) {
-        System.out.println("checkpoint: " + timestamp);
+        System.out.println("checkpoint criado: " + timestamp);
         checkpointsArray.add(timestamp);
+        CkpIndex++;
     }
 
     /**Pega o checkpoint necessÃ¡rio para poder entregar a mensagem no tempo passado
@@ -215,11 +325,15 @@ public class Chat extends javax.swing.JFrame {
         String auxiliar, checkpoint = null;
         while (it.hasNext()) {
             auxiliar = it.next();
-            if (Integer.valueOf(timestamp) < Integer.valueOf(auxiliar)) {
+            if (Integer.valueOf(timestamp) < Integer.valueOf(auxiliar)) { //modificado
                 listaCheckpointsRemocao.add(auxiliar);
+                totalCheckpointsInuteis ++;
+                if(CkpIndex < 1) CkpIndex--;
+                //System.out.println("Adicionou na lista de exclusão o checkpoint:"+auxiliar);
             } else {
+            	//System.out.println("Atualizando checkpoint para retornar:"+auxiliar);
                 checkpoint = auxiliar;
-                break;
+                
             }
         }
         if (checkpoint != null) {
@@ -227,7 +341,7 @@ public class Chat extends javax.swing.JFrame {
                 checkpointsArray.remove(aux);
             }
         }
-        System.out.println("checkpoint: " + checkpoint);
+        System.out.println("Total de Checkpoints Inuteis: "+totalCheckpointsInuteis);
         return checkpoint;
     }
 
@@ -401,58 +515,75 @@ public class Chat extends javax.swing.JFrame {
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
-private void closeButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_closeButtonActionPerformed
-    int opcao = JOptionPane.showConfirmDialog(null, "Deseja realmente sair?", "Fechar ChatDCB", JOptionPane.YES_NO_OPTION);
-    if (opcao == 0) {
-        System.exit(0);
-    }
-}//GEN-LAST:event_closeButtonActionPerformed
-
-private void sendButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_sendButtonActionPerformed
-    try {
-        Integer.valueOf(recipientComboBox.getSelectedIndex() + 4);
-        try {
-            Integer.valueOf(timeStampText.getText());
-            switch (id) {
-                case 5: {
-                    Gateway5.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText(), timeStampText.getText());
-                    break;
-                }
-                case 6: {
-                    Gateway6.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText(), timeStampText.getText());
-                    break;
-                }
-                case 7: {
-                    Gateway7.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText(), timeStampText.getText());
-                    break;
-                }
-                case 8: {
-                    Gateway8.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText(), timeStampText.getText());
-                    break;
-                }
-                case 9: {
-                    Gateway9.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText(), timeStampText.getText());
-                    break;
-                }
-            }
-            message.setText("");
-            lastEventTimestamp = chatLVT;
-            this.incrementaContador();
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(null, "O valor do Timestamp deve ser um nÃºmero inteiro.");
-            e.printStackTrace();
-        }
-    } catch (Exception e) {
-        JOptionPane.showMessageDialog(null, "O valor do Recipient deve ser um nÃºmero inteiro.");
-    }
-}//GEN-LAST:event_sendButtonActionPerformed
-
-public void setChatLVT(String chatLVT){
-    this.chatLVT = chatLVT;
-    this.chatLVTaux = chatLVT;
-}
+	private void closeButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_closeButtonActionPerformed
+	    int opcao = JOptionPane.showConfirmDialog(null, "Deseja realmente sair?", "Fechar ChatDCB", JOptionPane.YES_NO_OPTION);
+	    if (opcao == 0) {
+	        System.exit(0);
+	    }
+	}//GEN-LAST:event_closeButtonActionPerformed
+	
+	private void sendButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_sendButtonActionPerformed
+	    try {
+	        Integer.valueOf(recipientComboBox.getSelectedIndex() + 4);
+	        //System.out.println("sem a soma:"+recipientComboBox.getSelectedIndex());
+	        try {
+	            Integer.valueOf(timeStampText.getText());
+	            switch (id) {
+	                case 5: {
+	                    Gateway5.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText()+"®"+CkpIndex, timeStampText.getText());
+	                    break;
+	                }
+	                case 6: {
+	                    Gateway6.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText()+"®"+CkpIndex, timeStampText.getText());
+	                    break;
+	                }
+	                case 7: {
+	                    Gateway7.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText()+"®"+CkpIndex, timeStampText.getText());
+	                    break;
+	                }
+	                case 8: {
+	                    Gateway8.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText()+"®"+CkpIndex, timeStampText.getText());
+	                    break;
+	                }
+	                case 9: {
+	                    Gateway9.UpdateAttribute("1." + ((String) recipientComboBox.getSelectedItem()).split(" ")[1], message.getText()+"®"+CkpIndex, timeStampText.getText());
+	                    break;
+	                }
+	            }
+	            message.setText("");
+	            lastEventTimestamp = chatLVT;
+	            this.incrementaContador();
+	        } catch (Exception e) {
+	            JOptionPane.showMessageDialog(null, "O valor do Timestamp deve ser um nÃºmero inteiro.");
+	            e.printStackTrace();
+	        }
+	    } catch (Exception e) {
+	        JOptionPane.showMessageDialog(null, "O valor do Recipient deve ser um nÃºmero inteiro.");
+	    }
+	}//GEN-LAST:event_sendButtonActionPerformed
+	
+	public void setChatLVT(String chatLVT){
+	    this.chatLVT = chatLVT;
+	    this.chatLVTaux = chatLVT;
+	    
+	    
+	    
+	    //System.out.println("Atualizou o LVT para: "+chatLVT);
+	}
 
     public void rollback(String Momento) {
+    	
+    	int tempoRollback = 0;
+    	
+    	tempoRollback = Integer.parseInt(chatLVT) - Integer.parseInt(Momento);
+    	
+    	
+    	totalTempoRollback += tempoRollback;
+    	
+    	totalRollbacks++;
+    	
+    	System.out.println("Rollback "+totalRollbacks+", LVT Atual: "+chatLVT+", LVT do rollback: "+Momento+" Somatorio de rollbacks: "+totalTempoRollback);
+    	
         PriorityQueue<Message> Lista = null;
         PriorityQueue<Message> ListaParaRemocao = new PriorityQueue<Message>(1, new Message());
         switch (id) {
@@ -486,10 +617,13 @@ public void setChatLVT(String chatLVT){
             while (s != null) {
                 //System.out.println("s.LVT: "+s.LVT +" Momento: "+ Momento);
                 //Verifica quais mensagens devem ser deletadas
-                if (Integer.valueOf(s.LVT) > Integer.valueOf(Momento)) {
-                    todasMensagens += s.Value;
-                    System.out.println("mensagem: " + s.Value);
+            	//System.out.println("LVT da mensagem '"+s.Value+"' sendo testada"+s.LVT);
+                if (Integer.valueOf(s.LVT) > Integer.valueOf(Momento)){  // && Integer.valueOf(s.LVT) != Integer.valueOf(Momento)) {
+                	
+                    todasMensagens += s.Value+"\n"; // comeco a acrescentar o \n para se assemelhar com a mensagem que está na tela.
+                    //System.out.println("mensagem a ser apagada devido ao rollback: " + s.Value);
                     ListaParaRemocao.add(s);
+                	
                 }
                 if (it.hasNext()) {
                     s = it.next();
@@ -527,7 +661,7 @@ public void setChatLVT(String chatLVT){
                 }
             }
         }
-
+        
         //Recuar LVT para o Momento no Rollback;
         switch (id) {
             case 5: {
@@ -554,15 +688,35 @@ public void setChatLVT(String chatLVT){
         this.chatLVT = Momento;
         this.chatLVTaux = Momento;
         if (todasMensagens.compareTo("") != 0) {
-            System.out.println("Mensagens para serem retiradas: " + todasMensagens);
-            int posicao = this.getReceivedText().lastIndexOf(todasMensagens);
-            //System.out.println("PosiÃ§Ã£o: "+posicao);
-            if (posicao > 0) {
+        	/*
+        	 * alterações: Já que as mensagens a serem removidas estão vindo com \n para ficarem igual as que estão na tela,
+        	 * a String todasMensagens também contém as mernsagens "de trás pra frente" em ordem de envio.
+        	 * pego a última do split, que na verdade é a primeira que deve ser removida da tela
+        	 * e reescrevo o "receivedText" da posição 0 até o inicio da mensagem a ser apagada.
+        	 */
+            //System.out.println("Mensagens para serem retiradas: " + todasMensagens);
+            String teste[] = todasMensagens.split("\n");
+            //System.out.println("Length:"+teste.length);
+            //System.out.println(teste);
+            //System.out.println("fim do teste");
+            //if(teste.length == 1) return; //caso só tenha uma mensagem a ser removida significa que é a nova mensagem.
+            String teste2;
+            if(teste.length == 1){
+            	teste2 = teste[0];
+            }else{
+            	teste2 = teste[0]; //primeira posicao das mensagens a serem removidas, para apagar a partir deste.
+            	//tem que ser [0] para o teste automático, e [1] para testar manualmente
+            }
+            //System.out.println("Teste2:"+teste2);
+            //System.out.println("Mensagem do setText:"+ this.getReceivedText());
+            int posicao = this.getReceivedText().lastIndexOf(teste2);
+            //System.out.println("Posicaoo na substring: "+posicao);
+            if (posicao != -1) {
                 this.receivedText.setText(this.getReceivedText().substring(0, posicao));
             } else {
-                this.receivedText.setText("");
+                //this.receivedText.setText(""); //não zera o "setReceivedText pois provavelmente não havia mensagem para ser apagada.
             }
-
+            //System.out.println("Terminou o rollback, chatlvt:"+chatLVT);
         }
     }
 
@@ -646,10 +800,11 @@ public void setChatLVT(String chatLVT){
                 //lookahead de 100
                 aux = aux + 100;
                 while (chatLVT.compareTo(chatLVTaux) == 0) {
-                    try {
+                    /*try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
-                    }
+                    }*/
+                    //System.out.println("Atualizando LVT: "+chatLVT+" aux: "+chatLVTaux);
                     switch (id) {
                         case 5: {
                             //aux -= 99;
@@ -678,6 +833,13 @@ public void setChatLVT(String chatLVT){
                     }
                 }
                 chatLVTaux = chatLVT;
+                if(chatLVT.compareTo("-1") == 0){
+                	System.out.println("Total de rollbacks realizados: "+totalRollbacks);
+        	    	System.out.println("Total de tempo em rollback: "+totalTempoRollback);
+        	    	System.out.println("Total de checkpoints inúteis: "+totalCheckpointsInuteis);
+        	    	System.out.println("Checkpoint Index: "+CkpIndex);
+        	    	System.out.println("Finalizando Chat!");
+        	    }
             }
         }
     }
@@ -685,10 +847,11 @@ public void setChatLVT(String chatLVT){
     private class CheckpointAnalyzer implements Runnable {
 
         private Chat outerClass;
-        private Integer tempo,  provavelCheckpoint;
+        private Integer tempo,  provavelCheckpoint, ultimoCheckpoint;
 
         public CheckpointAnalyzer(Chat pointer) {
             outerClass = pointer;
+            ultimoCheckpoint = 0;
         }
 
         public void run() {
@@ -699,9 +862,19 @@ public void setChatLVT(String chatLVT){
                 }
                 //Se a quantidade de mensagens trocadas for considerÃ¡vel, maior que 10
                 if (outerClass.contadorDeMensagens > 10) {
-                    outerClass.setCheckpoint(outerClass.chatLVT);
+                    //outerClass.setCheckpoint(outerClass.chatLVT);
+                    outerClass.contadorDeMensagens = 0;
                 }
-
+                
+                if(Integer.valueOf(outerClass.chatLVT) - ultimoCheckpoint >= 5000){
+                	if(!(outerClass.checkpointsArray.contains(outerClass.chatLVT))){
+                		//System.out.println("Criando Checkpoint!");
+                		//outerClass.setCheckpoint(outerClass.chatLVT);
+                		ultimoCheckpoint = Integer.parseInt(outerClass.chatLVT);
+                	}
+                }
+                
+                /*
                 tempo = Integer.valueOf(outerClass.chatLVT) - Integer.valueOf(outerClass.lastEventTimestamp);
                 provavelCheckpoint = Integer.valueOf(outerClass.lastEventTimestamp);
                 provavelCheckpoint += 10;
@@ -710,8 +883,279 @@ public void setChatLVT(String chatLVT){
                     System.out.println("LastEventTimestamp: " + lastEventTimestamp);
                     outerClass.setCheckpoint(provavelCheckpoint.toString());
 
-                }
+                }*/
             }
         }
     }
+    
+    private class MensagensAutomaticas implements Runnable{
+
+        private Chat outerClass;
+        
+        private int cont = 0;
+        
+        public MensagensAutomaticas(Chat pointer){ // construtor
+            outerClass = pointer;
+        }
+
+        public void run(){
+        	System.out.println("Startou a thread!");
+        	
+        	
+        	
+            while(true){
+
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {
+                	System.out.println("Exception no sleep!");
+                	System.out.println(ex);
+                }
+                switch(id){//cada chat enviará uma série de mensagens
+                    case 5:
+                    	//////////////////////////////////////////////////////////////chat 5
+                    	if(outerClass.chatLVT.compareTo("200") == 0){
+                            Gateway5.UpdateAttribute("1.6", "Msg chat 5 aos 200-500"+"®"+outerClass.CkpIndex, "500");
+                        }
+                    	if(outerClass.chatLVT.compareTo("300") == 0){
+                            Gateway5.UpdateAttribute("1.8", "Msg do 1.5 aos 700"+"®"+outerClass.CkpIndex, "700");
+                        }
+                    	if(outerClass.chatLVT.compareTo("1000") == 0){
+                            Gateway5.UpdateAttribute("1.6", "Msg chat 5 aos 1200"+"®"+outerClass.CkpIndex, "1200");
+                        }
+                    	if(outerClass.chatLVT.compareTo("1000") == 0){
+                            Gateway5.UpdateAttribute("1.7", "Msg chat 5 aos 1200"+"®"+outerClass.CkpIndex, "1200");
+                        }
+                    	if(outerClass.chatLVT.compareTo("3500") == 0){
+                            Gateway5.UpdateAttribute("1.6", "Msg chat 5 aos 4000"+"®"+outerClass.CkpIndex, "4000");
+                        }
+                    	if(outerClass.chatLVT.compareTo("13000") == 0){
+                            Gateway5.UpdateAttribute("1.7", "Msg chat 5 aos 13200"+"®"+outerClass.CkpIndex, "13200");
+                        }
+                    	if(outerClass.chatLVT.compareTo("13500") == 0){
+                            Gateway5.UpdateAttribute("1.7", "Msg chat 5 aos 13700"+"®"+outerClass.CkpIndex, "13700");
+                        }
+                    	if(outerClass.chatLVT.compareTo("13000") == 0){
+                            Gateway5.UpdateAttribute("1.8", "Msg chat 5 aos 13200"+"®"+outerClass.CkpIndex, "13200");
+                        }
+                    	if(outerClass.chatLVT.compareTo("13500") == 0){
+                            Gateway5.UpdateAttribute("1.8", "Msg chat 5 aos 13700"+"®"+outerClass.CkpIndex, "13700");
+                        }
+                    	if(outerClass.chatLVT.compareTo("32000") == 0){
+                            Gateway5.UpdateAttribute("1.6", "Msg chat 5 aos 32500"+"®"+outerClass.CkpIndex, "32500");
+                        }
+                        break;
+                    case 6:
+                    	//////////////////////////////////////////////////////////////chat 6
+                        if(outerClass.chatLVT.compareTo("1200" ) == 0 && cont == 0){
+                            Gateway6.UpdateAttribute("1.8", "Msg chat 6 1200-1500"+"®"+outerClass.CkpIndex, "1500");
+                            cont++;
+                        }
+                        if(outerClass.chatLVT.compareTo("1300") == 0 && cont == 1){
+                        	System.out.println("Avancando LVT... de 1300 para 2700");
+                    		outerClass.chatLVT = Gateway6.updateLVT("2700");
+                            cont++;
+                        }
+                        if(outerClass.chatLVT.compareTo("4000") == 0 && cont == 2){
+                        	System.out.println("Avancando LVT... de 4000 para 5000");
+                    		outerClass.chatLVT = Gateway6.updateLVT("5000");
+                            cont++;
+                        }
+                        if(outerClass.chatLVT.compareTo("6400") ==0 && cont == 3){
+                            Gateway6.UpdateAttribute("1.8", "Mensagem chat 6 6700"+"®"+outerClass.CkpIndex, "6700");
+                            cont++;
+                    	}
+                        if(outerClass.chatLVT.compareTo("7400") ==0 && cont == 4){
+                            Gateway6.UpdateAttribute("1.8", "Mensagem chat 6 7700"+"®"+outerClass.CkpIndex, "7700");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("7800") == 0 && cont == 5){
+                        	System.out.println("Avancando LVT... de 7800 para 8600");
+                    		outerClass.chatLVT = Gateway6.updateLVT("8600");
+                            cont++;
+                        }
+                        if(outerClass.chatLVT.compareTo("10000") == 0 && cont == 6){
+                        	System.out.println("Avancando LVT... de 10000 para 10600");
+                    		outerClass.chatLVT = Gateway6.updateLVT("10600");
+                            cont++;
+                        }
+                        if(outerClass.chatLVT.compareTo("18100") ==0 && cont == 7){
+                            Gateway6.UpdateAttribute("1.8", "Mensagem chat 6 18300"+"®"+outerClass.CkpIndex, "18300");
+                            cont++;
+                    	}
+                        if(outerClass.chatLVT.compareTo("24000") == 0 && cont == 8){
+                        	System.out.println("Avancando LVT... de 24000 para 24500");
+                    		outerClass.chatLVT = Gateway6.updateLVT("24500");
+                            cont++;
+                        }
+                        if(outerClass.chatLVT.compareTo("26500") ==0 && cont == 9){
+                            Gateway6.UpdateAttribute("1.8", "Mensagem chat 6 27000"+"®"+outerClass.CkpIndex, "27000");
+                            cont++;
+                    	}
+                        if(outerClass.chatLVT.compareTo("27000") ==0 && cont == 10){
+                            Gateway6.UpdateAttribute("1.7", "Mensagem chat 6 28500"+"®"+outerClass.CkpIndex, "28500");
+                            cont++;
+                    	}
+                        if(outerClass.chatLVT.compareTo("27500") ==0 && cont == 11){
+                            Gateway6.UpdateAttribute("1.7", "Mensagem chat 6 29000"+"®"+outerClass.CkpIndex, "29000");
+                            cont++;
+                    	}
+                        if(outerClass.chatLVT.compareTo("28000") == 0 && cont == 12){
+                        	System.out.println("Avancando LVT... de 28000 para 29800");
+                    		outerClass.chatLVT = Gateway6.updateLVT("29800");
+                            cont++;
+                        }
+                        if(outerClass.chatLVT.compareTo("30200") == 0 && cont == 13){
+                        	System.out.println("Avancando LVT... de 30200 para 34800");
+                    		outerClass.chatLVT = Gateway6.updateLVT("34800");
+                            cont++;
+                        }
+                        break;
+                    case 7:
+                    	//////////////////////////////////////////////////////////////chat 7
+                    	if(outerClass.chatLVT.compareTo("6000") ==0 && cont == 0){
+                            Gateway7.UpdateAttribute("1.6", "Mensagem chat 7 6200"+"®"+outerClass.CkpIndex, "6200");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("6900") ==0 && cont == 1){
+                            Gateway7.UpdateAttribute("1.6", "Mensagem chat 7 7200"+"®"+outerClass.CkpIndex, "7200");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("8000") ==0 && cont == 2){
+                            Gateway7.UpdateAttribute("1.6", "Mensagem chat 7 8300"+"®"+outerClass.CkpIndex, "8300");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("8100") == 0 && cont == 3){
+                        	System.out.println("Avancando LVT... de 8100 para 8900");
+                    		outerClass.chatLVT = Gateway7.updateLVT("8900");
+                            cont++;
+                        }
+                    	if(outerClass.chatLVT.compareTo("10000") == 0 && cont == 4){
+                        	System.out.println("Avancando LVT... de 10000 para 10900");
+                    		outerClass.chatLVT = Gateway7.updateLVT("10900");
+                            cont++;
+                        }
+                    	if(outerClass.chatLVT.compareTo("14000") == 0 && cont == 5){
+                        	System.out.println("Avancando LVT... de 14000 para 16000");
+                    		outerClass.chatLVT = Gateway7.updateLVT("16000");
+                            cont++;
+                        }
+                    	if(outerClass.chatLVT.compareTo("21000") == 0 && cont == 6){
+                        	System.out.println("Avancando LVT... de 21000 para 21400");
+                    		outerClass.chatLVT = Gateway7.updateLVT("21400");
+                            cont++;
+                        }
+                    	if(outerClass.chatLVT.compareTo("24500") ==0 && cont == 7){
+                            Gateway7.UpdateAttribute("1.6", "Mensagem chat 7 24800"+"®"+outerClass.CkpIndex, "24800");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("26000") ==0 && cont == 8){
+                            Gateway7.UpdateAttribute("1.8", "Mensagem chat 7 26500"+"®"+outerClass.CkpIndex, "26500");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("29000") == 0 && cont == 9){
+                        	System.out.println("Avancando LVT... de 29000 para 30000");
+                    		outerClass.chatLVT = Gateway7.updateLVT("30000");
+                            cont++;
+                        }
+                        break;
+                    case 8:
+                    	//////////////////////////////////////////////////////////////chat 8
+                    	if(outerClass.chatLVT.compareTo("1800") ==0 && cont == 0){
+                            Gateway8.UpdateAttribute("1.6", "Mensagem chat 8 2200"+"®"+outerClass.CkpIndex, "2200");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("1500") == 0 && cont == 1){
+                        	System.out.println("Avancando LVT... de 1500 para 2200");
+                    		outerClass.chatLVT = Gateway8.updateLVT("2200");
+                            cont++;
+                        }
+                    	if(outerClass.chatLVT.compareTo("6000") ==0 && cont == 2){
+                            Gateway8.UpdateAttribute("1.7", "Mensagem chat 8 6200"+"®"+outerClass.CkpIndex, "6200");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("6900") ==0 && cont == 3){
+                            Gateway8.UpdateAttribute("1.7", "Mensagem chat 8 7200"+"®"+outerClass.CkpIndex, "7200");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("8400") ==0 && cont == 4){
+                            Gateway8.UpdateAttribute("1.7", "Mensagem chat 8 8600"+"®"+outerClass.CkpIndex, "8600");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("10000") == 0 && cont == 5){
+                        	System.out.println("Avancando LVT... de 10000 para 10100");
+                    		outerClass.chatLVT = Gateway8.updateLVT("10100");
+                            cont++;
+                        }
+                    	if(outerClass.chatLVT.compareTo("14000") == 0 && cont == 6){
+                        	System.out.println("Avancando LVT... de 14000 para 16000");
+                    		outerClass.chatLVT = Gateway8.updateLVT("16000");
+                            cont++;
+                        }
+                    	if(outerClass.chatLVT.compareTo("18800") ==0 && cont == 7){
+                            Gateway8.UpdateAttribute("1.7", "Mensagem chat 8 19000"+"®"+outerClass.CkpIndex, "19000");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("21000") == 0 && cont == 8){
+                        	System.out.println("Avancando LVT... de 21000 para 21200");
+                    		outerClass.chatLVT = Gateway8.updateLVT("21200");
+                            cont++;
+                        }
+                    	if(outerClass.chatLVT.compareTo("23000") ==0 && cont == 9){
+                            Gateway8.UpdateAttribute("1.6", "Mensagem chat 8 25500"+"®"+outerClass.CkpIndex, "26200");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("23500") ==0 && cont == 10){
+                            Gateway8.UpdateAttribute("1.6", "Mensagem chat 8 26000"+"®"+outerClass.CkpIndex, "27400");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("24000") ==0 && cont == 11){
+                            Gateway8.UpdateAttribute("1.6", "Mensagem chat 8 26500"+"®"+outerClass.CkpIndex, "28500");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("31000") ==0 && cont == 12){
+                            Gateway8.UpdateAttribute("1.7", "Mensagem chat 8 31500"+"®"+outerClass.CkpIndex, "31500");
+                            cont++;
+                    	}
+                        break;
+                    case 9:
+                    	////////////////////////////////////////////////////////////// chat 9
+                    	if(outerClass.chatLVT.compareTo("1800") ==0 && cont == 0){
+                            Gateway9.UpdateAttribute("1.5", "Mensagem chat 9 2200"+"®"+outerClass.CkpIndex, "2200");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("5000") ==0 && cont == 1){
+                            Gateway9.UpdateAttribute("1.7", "Mensagem chat 9 5200"+"®"+outerClass.CkpIndex, "5200");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("5000") ==0 && cont == 2){
+                            Gateway9.UpdateAttribute("1.8", "Mensagem chat 9 5200"+"®"+outerClass.CkpIndex, "5200");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("5500") ==0 && cont == 3){
+                            Gateway9.UpdateAttribute("1.7", "Mensagem chat 9 5700"+"®"+outerClass.CkpIndex, "5700");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("5500") ==0 && cont == 4){
+                            Gateway9.UpdateAttribute("1.8", "Mensagem chat 9 5700"+"®"+outerClass.CkpIndex, "5700");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("22500") ==0 && cont == 5){
+                            Gateway9.UpdateAttribute("1.6", "Mensagem chat 9 22800"+"®"+outerClass.CkpIndex, "22800");
+                            cont++;
+                    	}
+                    	if(outerClass.chatLVT.compareTo("23000") ==0 && cont == 6){
+                            Gateway9.UpdateAttribute("1.6", "Mensagem chat 9 23300"+"®"+outerClass.CkpIndex, "23300");
+                            cont++;
+                    	}
+                        break;
+                }
+
+            }
+        }
+
+    }
+
+    
+    
 }
